@@ -22,47 +22,4 @@ data class TaskResponse(
     val commentCount: Int,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime
-)
-
-data class TaskSummaryResponse(
-    val id: UUID,
-    val title: String,
-    val priority: TaskPriority,
-    val dueDate: LocalDateTime?,
-    val isCompleted: Boolean,
-    val status: TaskStatusResponse,
-    val assignee: UserResponse?,
-    val tagCount: Int
-)
-
-data class TaskStatusResponse(
-    val id: UUID,
-    val name: String,
-    val color: String,
-    val orderIndex: Int,
-    val isFinal: Boolean
-)
-
-data class TagResponse(
-    val id: UUID,
-    val name: String,
-    val color: String
-)
-
-data class ChecklistResponse(
-    val id: UUID,
-    val title: String,
-    val isCompleted: Boolean,
-    val completedAt: LocalDateTime?,
-    val orderIndex: Int,
-    val completedBy: UserResponse?
-)
-
-data class TaskCommentResponse(
-    val id: UUID,
-    val content: String,
-    val isEdited: Boolean,
-    val author: UserResponse,
-    val createdAt: LocalDateTime,
-    val updatedAt: LocalDateTime
 ) 

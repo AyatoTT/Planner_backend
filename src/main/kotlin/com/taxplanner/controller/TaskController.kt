@@ -2,7 +2,13 @@ package com.taxplanner.controller
 
 import com.taxplanner.dto.request.CreateTaskRequest
 import com.taxplanner.dto.request.UpdateTaskRequest
+import com.taxplanner.dto.request.UpdateTaskStatusRequest
+import com.taxplanner.dto.request.CreateCommentRequest
+import com.taxplanner.dto.request.CreateChecklistRequest
+import com.taxplanner.dto.request.UpdateChecklistRequest
 import com.taxplanner.dto.response.TaskResponse
+import com.taxplanner.dto.response.CommentResponse
+import com.taxplanner.dto.response.ChecklistResponse
 import com.taxplanner.security.UserPrincipal
 import com.taxplanner.service.TaskService
 import io.swagger.v3.oas.annotations.Operation
@@ -75,11 +81,77 @@ class TaskController(
     @Operation(summary = "Update task status")
     fun updateTaskStatus(
         @PathVariable id: UUID,
-        @RequestParam statusId: UUID,
-        @RequestParam(required = false) orderIndex: Int?,
+        @Valid @RequestBody request: UpdateTaskStatusRequest,
         @AuthenticationPrincipal userPrincipal: UserPrincipal
     ): ResponseEntity<TaskResponse> {
-        val task = taskService.updateStatus(id, statusId, orderIndex, userPrincipal.id)
+        val task = taskService.updateStatus(id, request.statusId, request.orderIndex, userPrincipal.id)
         return ResponseEntity.ok(task)
+    }
+
+    // Comment endpoints
+    @GetMapping("/{id}/comments")
+    @Operation(summary = "Get task comments")
+    fun getTaskComments(
+        @PathVariable id: UUID,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal
+    ): ResponseEntity<List<CommentResponse>> {
+        val comments = taskService.getComments(id, userPrincipal.id)
+        return ResponseEntity.ok(comments)
+    }
+
+    @PostMapping("/{id}/comments")
+    @Operation(summary = "Create task comment")
+    fun createTaskComment(
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: CreateCommentRequest,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal
+    ): ResponseEntity<CommentResponse> {
+        val comment = taskService.createComment(id, request, userPrincipal.id)
+        return ResponseEntity.ok(comment)
+    }
+
+    // Checklist endpoints
+    @GetMapping("/{id}/checklists")
+    @Operation(summary = "Get task checklists")
+    fun getTaskChecklists(
+        @PathVariable id: UUID,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal
+    ): ResponseEntity<List<ChecklistResponse>> {
+        val checklists = taskService.getChecklists(id, userPrincipal.id)
+        return ResponseEntity.ok(checklists)
+    }
+
+    @PostMapping("/{id}/checklists")
+    @Operation(summary = "Create task checklist")
+    fun createTaskChecklist(
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: CreateChecklistRequest,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal
+    ): ResponseEntity<ChecklistResponse> {
+        val checklist = taskService.createChecklist(id, request, userPrincipal.id)
+        return ResponseEntity.ok(checklist)
+    }
+
+    @PutMapping("/{taskId}/checklists/{checklistId}")
+    @Operation(summary = "Update task checklist")
+    fun updateTaskChecklist(
+        @PathVariable taskId: UUID,
+        @PathVariable checklistId: UUID,
+        @Valid @RequestBody request: UpdateChecklistRequest,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal
+    ): ResponseEntity<ChecklistResponse> {
+        val checklist = taskService.updateChecklist(taskId, checklistId, request, userPrincipal.id)
+        return ResponseEntity.ok(checklist)
+    }
+
+    @DeleteMapping("/{taskId}/checklists/{checklistId}")
+    @Operation(summary = "Delete task checklist")
+    fun deleteTaskChecklist(
+        @PathVariable taskId: UUID,
+        @PathVariable checklistId: UUID,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal
+    ): ResponseEntity<Map<String, String>> {
+        taskService.deleteChecklist(taskId, checklistId, userPrincipal.id)
+        return ResponseEntity.ok(mapOf("message" to "Checklist deleted successfully"))
     }
 } 

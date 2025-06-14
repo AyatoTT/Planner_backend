@@ -16,20 +16,4 @@ data class ProjectResponse(
     val userRole: OrganizationRole,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime
-)
-
-data class OrganizationSummaryResponse(
-    val id: UUID,
-    val name: String,
-    val logoUrl: String?
-)
-
-data class ProjectSummaryResponse(
-    val id: UUID,
-    val name: String,
-    val description: String?,
-    val colorTheme: String?,
-    val memberCount: Int,
-    val taskCount: Int,
-    val completedTaskCount: Int
 ) 

@@ -67,4 +67,18 @@ data class Task(
         status = TaskStatus(),
         creator = User()
     )
+
+    /**
+     * Updates the completion status based on the task status
+     */
+    fun updateCompletionStatus() {
+        val wasCompleted = isCompleted
+        isCompleted = status.isFinal
+        
+        if (isCompleted && !wasCompleted) {
+            completedAt = LocalDateTime.now()
+        } else if (!isCompleted && wasCompleted) {
+            completedAt = null
+        }
+    }
 } 

@@ -6,10 +6,13 @@ import com.taxplanner.domain.entity.User
 import com.taxplanner.domain.enums.OrganizationRole
 import com.taxplanner.dto.request.CreateOrganizationRequest
 import com.taxplanner.dto.request.UpdateOrganizationRequest
+import com.taxplanner.dto.request.InviteMemberRequest
 import com.taxplanner.dto.response.OrganizationResponse
+import com.taxplanner.dto.response.OrganizationMemberResponse
 import com.taxplanner.repository.OrganizationRepository
 import com.taxplanner.repository.OrganizationMemberRepository
 import com.taxplanner.repository.UserRepository
+import com.taxplanner.exception.*
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -42,10 +45,10 @@ class OrganizationService(
 
     fun getById(id: UUID, userId: UUID): OrganizationResponse {
         val organization = organizationRepository.findByIdOrNull(id)
-            ?: throw RuntimeException("Organization not found")
+            ?: throw OrganizationNotFoundException(id)
         
         val membership = organizationMemberRepository.findByOrganizationIdAndUserId(id, userId)
-            ?: throw RuntimeException("Access denied")
+            ?: throw AccessDeniedException()
 
         return OrganizationResponse(
             id = organization.id,
@@ -61,7 +64,7 @@ class OrganizationService(
 
     fun create(request: CreateOrganizationRequest, userId: UUID): OrganizationResponse {
         val user = userRepository.findByIdOrNull(userId)
-            ?: throw RuntimeException("User not found")
+            ?: throw UserNotFoundException(userId)
 
         val organization = Organization(
             name = request.name,
@@ -91,13 +94,13 @@ class OrganizationService(
 
     fun update(id: UUID, request: UpdateOrganizationRequest, userId: UUID): OrganizationResponse {
         val organization = organizationRepository.findByIdOrNull(id)
-            ?: throw RuntimeException("Organization not found")
+            ?: throw OrganizationNotFoundException(id)
 
         val membership = organizationMemberRepository.findByOrganizationIdAndUserId(id, userId)
-            ?: throw RuntimeException("Access denied")
+            ?: throw AccessDeniedException()
 
         if (membership.role != OrganizationRole.OWNER && membership.role != OrganizationRole.ADMIN) {
-            throw RuntimeException("Insufficient permissions")
+            throw InsufficientPermissionsException("update organization")
         }
 
         request.name?.let { organization.name = it }
@@ -119,15 +122,90 @@ class OrganizationService(
 
     fun delete(id: UUID, userId: UUID) {
         val organization = organizationRepository.findByIdOrNull(id)
-            ?: throw RuntimeException("Organization not found")
+            ?: throw OrganizationNotFoundException(id)
 
         val membership = organizationMemberRepository.findByOrganizationIdAndUserId(id, userId)
-            ?: throw RuntimeException("Access denied")
+            ?: throw AccessDeniedException()
 
         if (membership.role != OrganizationRole.OWNER) {
-            throw RuntimeException("Only owners can delete organizations")
+            throw InsufficientPermissionsException("delete organization")
         }
 
         organizationRepository.delete(organization)
+    }
+
+    fun getMembers(organizationId: UUID, userId: UUID): List<OrganizationMemberResponse> {
+        val organization = organizationRepository.findByIdOrNull(organizationId)
+            ?: throw OrganizationNotFoundException(organizationId)
+        
+        val membership = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userId)
+            ?: throw AccessDeniedException()
+
+        val members = organizationMemberRepository.findByOrganizationId(organizationId)
+        return members.map { member ->
+            OrganizationMemberResponse(
+                id = member.id,
+                userId = member.user.id,
+                userName = member.user.name,
+                userEmail = member.user.email,
+                role = member.role.toString(),
+                organizationId = member.organization.id,
+                joinedAt = member.joinedAt
+            )
+        }
+    }
+
+    fun inviteMember(organizationId: UUID, request: InviteMemberRequest, userId: UUID): OrganizationMemberResponse {
+        val organization = organizationRepository.findByIdOrNull(organizationId)
+            ?: throw OrganizationNotFoundException(organizationId)
+        
+        val membership = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userId)
+            ?: throw AccessDeniedException()
+
+        if (membership.role == OrganizationRole.VIEWER) {
+            throw InsufficientPermissionsException("invite members")
+        }
+
+        // Find user by email
+        val userToInvite = userRepository.findByEmail(request.email)
+            ?: throw UserNotFoundException("email: ${request.email}")
+
+        // Check if user is already a member
+        val existingMembership = organizationMemberRepository.findByOrganizationIdAndUserId(
+            organizationId, userToInvite.id
+        )
+        if (existingMembership != null) {
+            throw DuplicateEntityException("Member", "email", request.email)
+        }
+
+        // Parse role
+        val role = try {
+            OrganizationRole.valueOf(request.role.uppercase())
+        } catch (e: IllegalArgumentException) {
+            throw ValidationException("Invalid role: ${request.role}")
+        }
+
+        // Only owners can invite other owners/admins
+        if ((role == OrganizationRole.OWNER || role == OrganizationRole.ADMIN) && 
+            membership.role != OrganizationRole.OWNER) {
+            throw InsufficientPermissionsException("invite ${role.name.lowercase()}s")
+        }
+
+        val newMember = OrganizationMember(
+            organization = organization,
+            user = userToInvite,
+            role = role
+        )
+        val savedMember = organizationMemberRepository.save(newMember)
+
+        return OrganizationMemberResponse(
+            id = savedMember.id,
+            userId = savedMember.user.id,
+            userName = savedMember.user.name,
+            userEmail = savedMember.user.email,
+            role = savedMember.role.toString(),
+            organizationId = savedMember.organization.id,
+            joinedAt = savedMember.joinedAt
+        )
     }
 } 

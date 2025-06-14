@@ -2,8 +2,10 @@ package com.taxplanner.controller
 
 import com.taxplanner.dto.request.CreateProjectRequest
 import com.taxplanner.dto.request.UpdateProjectRequest
+import com.taxplanner.dto.request.CreateTagRequest
 import com.taxplanner.dto.response.ProjectResponse
 import com.taxplanner.dto.response.BoardResponse
+import com.taxplanner.dto.response.TagResponse
 import com.taxplanner.security.UserPrincipal
 import com.taxplanner.service.ProjectService
 import io.swagger.v3.oas.annotations.Operation
@@ -79,5 +81,26 @@ class ProjectController(
     ): ResponseEntity<Map<String, String>> {
         projectService.delete(id, userPrincipal.id)
         return ResponseEntity.ok(mapOf("message" to "Project deleted successfully"))
+    }
+
+    @GetMapping("/{id}/tags")
+    @Operation(summary = "Get project tags")
+    fun getProjectTags(
+        @PathVariable id: UUID,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal
+    ): ResponseEntity<List<TagResponse>> {
+        val tags = projectService.getTags(id, userPrincipal.id)
+        return ResponseEntity.ok(tags)
+    }
+
+    @PostMapping("/{id}/tags")
+    @Operation(summary = "Create project tag")
+    fun createProjectTag(
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: CreateTagRequest,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal
+    ): ResponseEntity<TagResponse> {
+        val tag = projectService.createTag(id, request, userPrincipal.id)
+        return ResponseEntity.ok(tag)
     }
 } 

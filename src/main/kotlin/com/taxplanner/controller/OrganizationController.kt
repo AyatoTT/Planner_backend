@@ -2,7 +2,9 @@ package com.taxplanner.controller
 
 import com.taxplanner.dto.request.CreateOrganizationRequest
 import com.taxplanner.dto.request.UpdateOrganizationRequest
+import com.taxplanner.dto.request.InviteMemberRequest
 import com.taxplanner.dto.response.OrganizationResponse
+import com.taxplanner.dto.response.OrganizationMemberResponse
 import com.taxplanner.security.UserPrincipal
 import com.taxplanner.service.OrganizationService
 import io.swagger.v3.oas.annotations.Operation
@@ -68,5 +70,26 @@ class OrganizationController(
     ): ResponseEntity<Map<String, String>> {
         organizationService.delete(id, userPrincipal.id)
         return ResponseEntity.ok(mapOf("message" to "Organization deleted successfully"))
+    }
+
+    @GetMapping("/{id}/members")
+    @Operation(summary = "Get organization members")
+    fun getOrganizationMembers(
+        @PathVariable id: UUID,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal
+    ): ResponseEntity<List<OrganizationMemberResponse>> {
+        val members = organizationService.getMembers(id, userPrincipal.id)
+        return ResponseEntity.ok(members)
+    }
+
+    @PostMapping("/{id}/members")
+    @Operation(summary = "Invite member to organization")
+    fun inviteOrganizationMember(
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: InviteMemberRequest,
+        @AuthenticationPrincipal userPrincipal: UserPrincipal
+    ): ResponseEntity<OrganizationMemberResponse> {
+        val member = organizationService.inviteMember(id, request, userPrincipal.id)
+        return ResponseEntity.ok(member)
     }
 } 

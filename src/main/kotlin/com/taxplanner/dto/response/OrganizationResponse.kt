@@ -13,12 +13,4 @@ data class OrganizationResponse(
     val projectCount: Int,
     val userRole: OrganizationRole,
     val createdAt: LocalDateTime
-)
-
-data class OrganizationMemberResponse(
-    val id: UUID,
-    val user: UserResponse,
-    val role: OrganizationRole,
-    val joinedAt: LocalDateTime,
-    val invitedBy: UserResponse?
 ) 

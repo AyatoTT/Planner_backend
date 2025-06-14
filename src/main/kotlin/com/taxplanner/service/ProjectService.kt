@@ -2,18 +2,23 @@ package com.taxplanner.service
 
 import com.taxplanner.domain.entity.Project
 import com.taxplanner.domain.entity.ProjectMember
+import com.taxplanner.domain.entity.Tag
 import com.taxplanner.domain.enums.OrganizationRole
 import com.taxplanner.dto.request.CreateProjectRequest
 import com.taxplanner.dto.request.UpdateProjectRequest
+import com.taxplanner.dto.request.CreateTagRequest
 import com.taxplanner.dto.response.ProjectResponse
 import com.taxplanner.dto.response.BoardResponse
 import com.taxplanner.dto.response.OrganizationSummaryResponse
 import com.taxplanner.dto.response.ProjectSummaryResponse
 import com.taxplanner.dto.response.TaskStatusResponse
+import com.taxplanner.dto.response.TagResponse
 import com.taxplanner.repository.ProjectRepository
 import com.taxplanner.repository.OrganizationMemberRepository
 import com.taxplanner.repository.OrganizationRepository
 import com.taxplanner.repository.UserRepository
+import com.taxplanner.repository.TagRepository
+import com.taxplanner.exception.*
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -25,7 +30,8 @@ class ProjectService(
     private val projectRepository: ProjectRepository,
     private val organizationRepository: OrganizationRepository,
     private val organizationMemberRepository: OrganizationMemberRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val tagRepository: TagRepository
 ) {
 
     fun getAllByUser(userId: UUID): List<ProjectResponse> {
@@ -57,12 +63,12 @@ class ProjectService(
 
     fun getById(id: UUID, userId: UUID): ProjectResponse {
         val project = projectRepository.findByIdOrNull(id)
-            ?: throw RuntimeException("Project not found")
+            ?: throw ProjectNotFoundException(id)
 
         // Check if user has access to this project
         val membership = organizationMemberRepository.findByOrganizationIdAndUserId(
             project.organization.id, userId
-        ) ?: throw RuntimeException("Access denied")
+        ) ?: throw AccessDeniedException()
 
         return ProjectResponse(
             id = project.id,
@@ -85,12 +91,12 @@ class ProjectService(
 
     fun getBoards(projectId: UUID, userId: UUID): List<BoardResponse> {
         val project = projectRepository.findByIdOrNull(projectId)
-            ?: throw RuntimeException("Project not found")
+            ?: throw ProjectNotFoundException(projectId)
 
         // Check if user has access to this project
         val membership = organizationMemberRepository.findByOrganizationIdAndUserId(
             project.organization.id, userId
-        ) ?: throw RuntimeException("Access denied")
+        ) ?: throw AccessDeniedException()
 
         return project.boards.map { board ->
             BoardResponse(
@@ -106,7 +112,7 @@ class ProjectService(
                     memberCount = project.members.size,
                     taskCount = project.boards.sumOf { it.tasks.size },
                     completedTaskCount = project.boards.sumOf { board -> 
-                        board.tasks.count { it.status.name.lowercase() == "done" || it.status.name.lowercase() == "completed" }
+                        board.tasks.count { it.status.isFinal }
                     }
                 ),
                 statuses = board.statuses.sortedBy { it.orderIndex }.map { status ->
@@ -115,6 +121,7 @@ class ProjectService(
                         name = status.name,
                         color = status.color,
                         orderIndex = status.orderIndex,
+                        boardId = board.id,
                         isFinal = status.isFinal
                     )
                 },
@@ -126,18 +133,18 @@ class ProjectService(
 
     fun create(request: CreateProjectRequest, userId: UUID): ProjectResponse {
         val organization = organizationRepository.findByIdOrNull(request.organizationId)
-            ?: throw RuntimeException("Organization not found")
+            ?: throw OrganizationNotFoundException(request.organizationId)
 
         val membership = organizationMemberRepository.findByOrganizationIdAndUserId(
             request.organizationId, userId
-        ) ?: throw RuntimeException("Access denied")
+        ) ?: throw AccessDeniedException()
 
         if (membership.role == OrganizationRole.VIEWER) {
-            throw RuntimeException("Insufficient permissions to create projects")
+            throw InsufficientPermissionsException("create projects")
         }
 
         val user = userRepository.findByIdOrNull(userId)
-            ?: throw RuntimeException("User not found")
+            ?: throw UserNotFoundException(userId)
 
         val project = Project(
             name = request.name,
@@ -177,14 +184,14 @@ class ProjectService(
 
     fun update(id: UUID, request: UpdateProjectRequest, userId: UUID): ProjectResponse {
         val project = projectRepository.findByIdOrNull(id)
-            ?: throw RuntimeException("Project not found")
+            ?: throw ProjectNotFoundException(id)
 
         val membership = organizationMemberRepository.findByOrganizationIdAndUserId(
             project.organization.id, userId
-        ) ?: throw RuntimeException("Access denied")
+        ) ?: throw AccessDeniedException()
 
         if (membership.role == OrganizationRole.VIEWER) {
-            throw RuntimeException("Insufficient permissions to update project")
+            throw InsufficientPermissionsException("update project")
         }
 
         request.name?.let { project.name = it }
@@ -214,16 +221,69 @@ class ProjectService(
 
     fun delete(id: UUID, userId: UUID) {
         val project = projectRepository.findByIdOrNull(id)
-            ?: throw RuntimeException("Project not found")
+            ?: throw ProjectNotFoundException(id)
 
         val membership = organizationMemberRepository.findByOrganizationIdAndUserId(
             project.organization.id, userId
-        ) ?: throw RuntimeException("Access denied")
+        ) ?: throw AccessDeniedException()
 
         if (membership.role != OrganizationRole.OWNER && membership.role != OrganizationRole.ADMIN) {
-            throw RuntimeException("Insufficient permissions to delete project")
+            throw InsufficientPermissionsException("delete project")
         }
 
         projectRepository.delete(project)
+    }
+
+    fun getTags(projectId: UUID, userId: UUID): List<TagResponse> {
+        val project = projectRepository.findByIdOrNull(projectId)
+            ?: throw ProjectNotFoundException(projectId)
+
+        // Check if user has access to this project
+        val membership = organizationMemberRepository.findByOrganizationIdAndUserId(
+            project.organization.id, userId
+        ) ?: throw AccessDeniedException()
+
+        return project.tags.map { tag ->
+            TagResponse(
+                id = tag.id,
+                name = tag.name,
+                color = tag.color,
+                projectId = tag.project.id
+            )
+        }
+    }
+
+    fun createTag(projectId: UUID, request: CreateTagRequest, userId: UUID): TagResponse {
+        val project = projectRepository.findByIdOrNull(projectId)
+            ?: throw ProjectNotFoundException(projectId)
+
+        // Check if user has access to this project
+        val membership = organizationMemberRepository.findByOrganizationIdAndUserId(
+            project.organization.id, userId
+        ) ?: throw AccessDeniedException()
+
+        if (membership.role == OrganizationRole.VIEWER) {
+            throw InsufficientPermissionsException("create tags")
+        }
+
+        // Check if tag with same name already exists in project
+        val existingTag = project.tags.find { it.name == request.name }
+        if (existingTag != null) {
+            throw DuplicateEntityException("Tag", "name", request.name)
+        }
+
+        val tag = Tag(
+            name = request.name,
+            color = request.color ?: "#3B82F6",
+            project = project
+        )
+
+        val savedTag = tagRepository.save(tag)
+        return TagResponse(
+            id = savedTag.id,
+            name = savedTag.name,
+            color = savedTag.color,
+            projectId = savedTag.project.id
+        )
     }
 } 
