@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/tax_planner
+    username: admin
+    password: admin
+
+logging:
+  level:
+    com.taxplanner: INFO
+    org.springframework.security: WARN
+    org.springframework.web: WARN 

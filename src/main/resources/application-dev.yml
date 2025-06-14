@@ -1,0 +1,14 @@
+spring:
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: create-drop
+  
+  flyway:
+    enabled: false
+
+logging:
+  level:
+    com.taxplanner: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG 
